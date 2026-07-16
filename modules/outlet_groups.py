@@ -36,9 +36,15 @@ OUTLET_DISPLAY_NAME: dict[str, str] = {
     # Delhi — T3 Domestic
     "T3 D49":                              "Encalm Lounge (T3 – D49)",
     "T3 DLO2/03/04":                       "Encalm Lounge (T3, DL02, 3 & 4)",
+    "T3 DL02/03/04":                       "Encalm Lounge (T3, DL02, 3 & 4)",
+    "T3 DL023 &4":                         "Encalm Lounge (T3, DL02, 3 & 4)",
+    "T3 DL023&4":                          "Encalm Lounge (T3, DL02, 3 & 4)",
+    "Lounge DL023 &4":                     "Encalm Lounge (T3, DL02, 3 & 4)",
+    "Lounge DL 023 & 4":                   "Encalm Lounge (T3, DL02, 3 & 4)",
     "Lounge - Amex Centurion":             "Lounge Amex Centurion",
     "Centurion Lounge":                    "Lounge Amex Centurion",
     "Lounge - Rupay":                      "Lounge Rupay",
+    "Lounge Rupay":                        "Lounge Rupay",
     "Domestic AI Lounge Del":              "Air India Lounge (T3 Dom)",
     "Air India":                           "Air India Lounge (T3 Dom)",
     "SPA Domestic":                        "Encalm Spa (T3 Dom)",
@@ -131,6 +137,11 @@ DELHI_GROUPS: dict[str, list[str]] = {
 
     "T3 Domestic": [
         "T3 DLO2/03/04",
+        "T3 DL02/03/04",
+        "T3 DL023 &4",
+        "T3 DL023&4",
+        "Lounge DL023 &4",
+        "Lounge DL 023 & 4",
         "T3 D49",
         "Lounge - Rupay",
         "Lounge - Amex Centurion",
