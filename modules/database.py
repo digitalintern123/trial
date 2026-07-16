@@ -41,48 +41,19 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # duplicate is removed below and replaced with this shared version.
 from .date_utils import safe_month_shift as _safe_month_shift
 
-# ── Database path ─────────────────────────────────────────────────────────
-# On Streamlit Cloud the container filesystem is ephemeral — the DB is wiped
-# on every restart/deploy. To persist data across restarts, set the env var
-# REVENUE_DB_PATH to a path outside the container (e.g. a mounted volume).
-# Locally it defaults to the repo root.
+# ── Database path ──────────────────────────────────────────────────────────
+# Streamlit Cloud mounts the repo at /mount/src/<repo>/ which is READ-ONLY.
+# We always use /tmp/revenue_analytics.db as the primary path — it is
+# guaranteed writable on every platform (Streamlit Cloud, local, Docker).
+# Data is backed up to GitHub automatically after every upload so nothing
+# is lost when /tmp is cleared on restart.
+# To override (e.g. a mounted persistent volume), set REVENUE_DB_PATH.
 _DB_ENV = os.environ.get("REVENUE_DB_PATH", "").strip()
-
 if _DB_ENV:
-    # Explicit env var — honour it but ensure the parent directory exists.
     DB_PATH = _DB_ENV
+    os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
 else:
-    # On Streamlit Cloud the repo root (/mount/src/) is read-only — SQLite
-    # cannot create or write a DB file there even if os.makedirs succeeds.
-    # Use a true write test (write + read back a byte) to confirm the path
-    # is genuinely writable before committing to it. /tmp is always safe.
-    _repo_root = os.path.dirname(os.path.dirname(__file__))
-    _candidates = [
-        os.path.join(_repo_root, "data", "revenue_analytics.db"),
-        os.path.join(_repo_root, "revenue_analytics.db"),
-        "/tmp/revenue_analytics.db",
-    ]
     DB_PATH = "/tmp/revenue_analytics.db"
-    for _candidate in _candidates:
-        try:
-            _dir = os.path.dirname(_candidate)
-            if _dir:
-                os.makedirs(_dir, exist_ok=True)
-            # True write test: open in read+write binary mode so the OS
-            # actually attempts a write syscall — catches read-only mounts
-            # that allow open() but reject writes (Streamlit Cloud behaviour).
-            _test_path = _dir + "/.write_test"
-            with open(_test_path, "wb") as _fh:
-                _fh.write(b"x")
-            os.remove(_test_path)
-            DB_PATH = _candidate
-            break
-        except OSError:
-            continue
-
-# Always ensure the parent directory exists regardless of how DB_PATH was set.
-_db_dir = os.path.dirname(os.path.abspath(DB_PATH))
-os.makedirs(_db_dir, exist_ok=True)
 
 ENGINE = create_engine(
     f"sqlite:///{DB_PATH}",
