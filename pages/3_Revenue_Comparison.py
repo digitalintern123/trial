@@ -345,6 +345,39 @@ with tab4:
     )
     current_traffic_joined = database.join_revenue_with_traffic(current_df)
     compare_traffic_joined = database.join_revenue_with_traffic(compare_df)
+
+    # Warn user when traffic data is missing for current or compare period
+    def _traffic_warning(joined: pd.DataFrame, label: str) -> None:
+        if joined is None or joined.empty:
+            st.warning(
+                f"⚠️ No traffic data found for **{label}**. "
+                "Traffic, PEN% and SPP columns will show — for this period. "
+                "Upload the corresponding traffic file to populate these columns.",
+                icon="⚠️",
+            )
+            return
+        if "traffic" in joined.columns:
+            no_traffic = joined[joined["traffic"].isna() | (joined["traffic"] == 0)]
+            if not no_traffic.empty:
+                locs = ", ".join(sorted(no_traffic["location"].unique()))
+                st.warning(
+                    f"⚠️ No traffic data for **{label}** — {locs}. "
+                    "Upload the traffic file for this period to see PEN% and SPP.",
+                    icon="⚠️",
+                )
+            if "traffic_is_estimated" in joined.columns and joined["traffic_is_estimated"].fillna(False).any():
+                est_locs = ", ".join(sorted(
+                    joined[joined["traffic_is_estimated"].fillna(False)]["location"].unique()
+                ))
+                st.info(
+                    f"ℹ️ Traffic for **{label}** — {est_locs} is estimated from monthly totals "
+                    "(daily traffic file not available). PEN% and SPP are approximate.",
+                    icon="ℹ️",
+                )
+
+    _traffic_warning(current_traffic_joined, current_short_label)
+    _traffic_warning(compare_traffic_joined, compare_short_label)
+
     table_style.render_penetration_spp_table(
         st, ra, database, current_traffic_joined, compare_traffic_joined, current_df,
         current_short_label, compare_short_label,
