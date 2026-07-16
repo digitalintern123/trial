@@ -210,7 +210,7 @@ _DELHI_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
 # ---------------------------------------------------------------------------
 _HYDERABAD_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
     # ── Domestic terminal ──────────────────────────────────────────────────
-    "Domestic Lounge":                   "Domestic",
+    "Domestic Lounge":                   "Domestic",   # short name used in revenue data
     "Domestic Lounge (Hyderabad)":       "Domestic",
     "Hyd Dom Lounge":                    "Domestic",
     "HYD DOM Prive":                     "Domestic",
@@ -219,13 +219,12 @@ _HYDERABAD_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
     "RL Dom Dep E":                      "Domestic",
     "RL Dom Dep F":                      "Domestic",
     # ── International terminal ─────────────────────────────────────────────
-    "International Lounge":              "International",
+    "International Lounge":              "International",  # short name in revenue data
     "International Lounge (Hyderabad)":  "International",
     "Hyd Intl Lounge":                   "International",
     "Hyd Intl Lounge - Closing":         "International",
-    "Prive":                             "International",
+    "Prive":                             "International",  # short name in revenue data
     "Prive (Hyderabad)":                 "International",
-    "Encalm Prive":                      "International",
     "INT Prive - Mezzanine level":       "International",
     "INT Card Lounge - new (Level E) - Upcoming": "International",
     "INT Card Lounge":                   "International",
@@ -233,26 +232,19 @@ _HYDERABAD_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
     "Airport Lodge (Hyderabad)":         "International",
     "Airport Lodge":                     "International",
     "Hyd GA Lounge":                     "International",
-    "GAT":                               "International",
-    "Reserved Lounge":                   "International",
-    "Reserved Lounge (HYD)":             "International",
+    "GAT":                               "International",  # General Aviation Terminal
+    "Reserved Lounge":                   "International",  # reserved lounge in intl area
     # ── No traffic pool ────────────────────────────────────────────────────
     "Encalm Sky Plates":                 None,
     "Encalm Sky Plates (Hyderabad)":     None,
-    "Sky Plates":                        None,
-    "Sky Plates (Hyderabad)":            None,
     "Transit Hotel":                     None,
     # ── Whole airport ─────────────────────────────────────────────────────
-    "Baggage Wrapping":                  "All",
+    "Baggage Wrapping":                  "All",   # short name in revenue data
     "Baggage Wrapping (Hyderabad)":      "All",
-    "Enwrap":                            "All",
-    "Meet & Greet":                      "All",
+    "Meet & Greet":                      "All",   # short name in revenue data
     "Meet & Greet (Hyderabad)":          "All",
     "M&G Hyd":                           "All",
-    "M&G":                               "All",
-    "Atithya":                           "All",
-    "GAT (Hyderabad)":                   "All",
-    "Porter":                            "All",
+    "Porter":                            "All",   # short name in revenue data
     "Porter (Hyderabad)":                "All",
 }
 
@@ -261,26 +253,32 @@ _HYDERABAD_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
 # ---------------------------------------------------------------------------
 _GOA_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
     # ── Domestic terminal ──────────────────────────────────────────────────
-    "Domestic Lounge":                   "Domestic",   # short name in revenue data
+    "Domestic Lounge":                   "Domestic",
     "Domestic Lounge (Goa)":             "Domestic",
     "Goa Lounge Dom":                    "Domestic",
     "RL Dom Departure":                  "Domestic",
     "RL Dom Arrival":                    "Domestic",
     # ── International terminal ─────────────────────────────────────────────
-    "International Lounge":              "International",  # short name in revenue data
+    "International Lounge":              "International",
     "International Lounge (Goa)":        "International",
     "Goa Lounge INTL":                   "International",
-    "Prive":                             "International",  # short name in revenue data
+    "Prive":                             "International",
     "Prive (Goa)":                       "International",
-    "CIP Lounge Goa":                    None,
+    "Reserved Lounge":                   "International",   # short name in DB
+    "Reserved Lounge (Goa)":             "International",
+    "Reserved Lounge Goa":               "International",
+    "CIP Lounge":                        "International",   # short name in DB
+    "CIP Lounge Goa":                    "International",
     "RL Int Arrival":                    "International",
     # ── Whole airport ─────────────────────────────────────────────────────
-    "Baggage Wrapping":                  "All",   # short name in revenue data
+    "Baggage Wrapping":                  "All",
     "Baggage Wrapping (Goa)":            "All",
-    "Meet & Greet":                      "All",   # short name in revenue data
+    "Enwrap":                            "All",
+    "Meet & Greet":                      "All",
     "Meet & Greet (Goa)":               "All",
     "M&G Goa":                           "All",
-    "Porter":                            "All",   # short name in revenue data
+    "M&G":                               "All",
+    "Porter":                            "All",
     "Porter (Goa)":                      "All",
 }
 
