@@ -90,8 +90,9 @@ def _build_group_summary(
     subtotals: list[tuple[str, list[str]]],
     aop_df: pd.DataFrame | None = None,
     compare_df: pd.DataFrame | None = None,
-    traffic_joined: pd.DataFrame | None = None,   # kept for backwards compat, unused
-    compare_traffic_joined: pd.DataFrame | None = None,  # kept for backwards compat, unused
+    traffic_joined: pd.DataFrame | None = None,
+    compare_traffic_joined: pd.DataFrame | None = None,
+    location_filter: str = "",   # e.g. "Delhi", "Hyderabad", "Goa" — used for display name resolution
 ) -> pd.DataFrame:
     """
     Build a grouped summary DataFrame with outlet rows and subtotal rows.
@@ -111,8 +112,8 @@ def _build_group_summary(
     # and "T1D new premium lounge 2 (level 5)" both → "Encalm Lounge (T1 D)")
     # are summed into a single row rather than appearing as duplicates.
     _cur = df.copy()
-    _cur["outlet"] = _cur["outlet"].map(
-        lambda o: get_display_name(o)
+    _cur["outlet"] = _cur.apply(
+        lambda r: get_display_name(r["outlet"], r.get("location", "")), axis=1
     )
     cur_agg = _cur.groupby(["outlet", "location"], as_index=False).agg(
         revenue=("revenue", "sum"), pax=("pax", "sum")
@@ -121,7 +122,9 @@ def _build_group_summary(
     # Same display-name normalisation for the compare period.
     if compare_df is not None and not compare_df.empty:
         _cmp = compare_df.copy()
-        _cmp["outlet"] = _cmp["outlet"].map(lambda o: get_display_name(o))
+        _cmp["outlet"] = _cmp.apply(
+            lambda r: get_display_name(r["outlet"], r.get("location", "")), axis=1
+        )
         cmp_agg = _cmp.groupby(["outlet", "location"], as_index=False).agg(
             revenue=("revenue", "sum"), pax=("pax", "sum")
         )
@@ -152,7 +155,9 @@ def _build_group_summary(
 
     def _outlet_row(outlet_name: str, group_label: str) -> dict | None:
         # cur_agg is now keyed by display name, so convert before lookup.
-        display = get_display_name(outlet_name)
+        # Pass location from the tab context so ambiguous names like
+        # "Reserved Lounge" resolve correctly per airport.
+        display = get_display_name(outlet_name, location_filter)
         cur = cur_agg[cur_agg["outlet"] == display]
         if cur.empty:
             return None
@@ -218,7 +223,7 @@ def _build_group_summary(
         # both map to "Encalm Lounge (T1 D)").
         seen_display_names: set = set()
         for outlet in outlets:
-            display_name = get_display_name(outlet)
+            display_name = get_display_name(outlet, location_filter)
             if display_name in seen_display_names:
                 matched_outlets.add(outlet)  # still mark as matched
                 continue
@@ -406,6 +411,7 @@ with tab_delhi:
             df_cur, DELHI_GROUPS, DELHI_SUBTOTALS,
             aop_df=df_aop, compare_df=df_cmp,
             traffic_joined=tj_cur, compare_traffic_joined=tj_cmp,
+            location_filter="Delhi",
         )
         _render_group_table(summary, current_label, compare_label)
 
@@ -421,6 +427,7 @@ with tab_hyd:
         summary = _build_group_summary(
             df_cur, HYD_GROUPS, [],
             aop_df=df_aop, compare_df=df_cmp,
+            location_filter="Hyderabad",
         )
         _render_group_table(summary, current_label, compare_label)
 
@@ -436,6 +443,7 @@ with tab_goa:
         summary = _build_group_summary(
             df_cur, GOA_GROUPS, [],
             aop_df=df_aop, compare_df=df_cmp,
+            location_filter="Goa",
         )
         _render_group_table(summary, current_label, compare_label)
 
