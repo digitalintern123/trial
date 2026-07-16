@@ -25,13 +25,15 @@ OUTLET_DISPLAY_NAME: dict[str, str] = {
     "T1D L4&5 Lounge":                     "Encalm Lounge (T1 D)",
     "T1D Lounge-1 Node L4&5 Card":         "Encalm Lounge (T1 D)",
     "T1D new Amex Lounge (level 4)":       "Amex Lounge T1",
-    "T1D new premium lounge 2 (level 5)":  "Encalm Lounge (T1 D)",
+    "T1D new premium lounge 2 (level 5)":  "Encalm Prive (T1)",
     "Rupay":                               "Encalm Prive (T1)",
+    "Lounge Rupay (T1)":                   "Encalm Prive (T1)",
+    "T1D Prive":                           "Encalm Prive (T1)",
     "T1D SPA":                             "Encalm Spa (T1 Dom)",
     # Delhi — T2
     "T2 Domestic":                         "Encalm Lounge (T2, D)",
-    "Lounge DL 02,03,04":                  "Encalm Lounge (T2, D)",
-    "Lounge DL 02&03":                     "Encalm Lounge (T2, D)",
+    "Lounge DL 02,03,04":                  "Encalm Lounge (T3, DL02, 3 & 4)",
+    "Lounge DL 02&03":                     "Encalm Lounge (T3, DL02, 3 & 4)",
     "T2 Lounge":                           "Encalm Lounge (T2, D)",
     # Delhi — T3 Domestic
     "T3 D49":                              "Encalm Lounge (T3 – D49)",
@@ -129,14 +131,15 @@ DELHI_GROUPS: dict[str, list[str]] = {
     ],
     "T2 (Lounges)": [
         "T2 Domestic",
-        "Lounge DL 02,03,04",
-        "Lounge DL 02&03",
+
         "T2 Lounge",
     ],
     "Total (T1D + T2D)": [],   # computed as sum of T1D + T2D groups
 
     "T3 Domestic": [
         "T3 DLO2/03/04",
+        "Lounge DL 02,03,04",
+        "Lounge DL 02&03",
         "T3 DL02/03/04",
         "T3 DL023 &4",
         "T3 DL023&4",
