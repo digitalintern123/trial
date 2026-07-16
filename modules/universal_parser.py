@@ -371,9 +371,11 @@ def _match_location(value: Any) -> Optional[str]:
         return None
     if t in LOCATION_VOCAB:
         return LOCATION_VOCAB[t]
-    # tolerant: "delhi t3", "hyderabad rgia" etc.
+    # tolerant: "delhi t3", "hyderabad rgia", "del traf", "hyd traf" etc.
+    # FIX: changed > 3 to >= 3 so 3-char codes like "del" and "hyd" are
+    # also matched as substrings in compound sheet names like "Del Traf".
     for key, canon in LOCATION_VOCAB.items():
-        if len(key) > 3 and key in t:
+        if len(key) >= 3 and key in t:
             return canon
     return None
 
