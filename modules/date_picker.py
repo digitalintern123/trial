@@ -117,6 +117,14 @@ def render_date_dropdown(
     # instead of resetting to the default (last day). This preserves the
     # user's day selection (e.g. day=29) when they switch months, as long
     # as that day exists in the new month. If not, use the closest day.
+
+    # Compute days_in_month BEFORE the month-change block so it's available
+    # for the clamping logic below.
+    days_in_month = sorted(
+        {d.day for d in available_dates if d.year == selected_year and d.month == selected_month},
+        reverse=True,
+    )
+
     if st.session_state.get(prev_month_key) != (selected_year, selected_month):
         prev_day = st.session_state.get(day_key)
         if prev_day is not None and prev_day not in days_in_month:
@@ -127,10 +135,6 @@ def render_date_dropdown(
     st.session_state[prev_month_key] = (selected_year, selected_month)
 
     # ── Day — filtered to selected_year + selected_month ──────────────────
-    days_in_month = sorted(
-        {d.day for d in available_dates if d.year == selected_year and d.month == selected_month},
-        reverse=True,
-    )
     with c3:
         if (
             default_date.year == selected_year
