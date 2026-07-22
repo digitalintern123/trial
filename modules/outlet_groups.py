@@ -342,35 +342,56 @@ HYD_GROUPS: dict[str, list[str]] = {
     # Row 7: TOTAL — grand total (computed in code)
 }
 
+GOA_SUBTOTALS: list[tuple[str, list[str]]] = [
+    # Total (Atithya + Porter) — subtotal
+    ("Total (Atithya + Porter)", ["Atithya", "Porter"]),
+    # Total — grand total of all Goa groups
+    ("Total", ["Atithya", "Porter", "Domestic Lounge", "International Lounge", "Baggage Wrapping"]),
+]
+
 GOA_GROUPS: dict[str, list[str]] = {
-    "Domestic": [
+    # Row 1: Atithya — Meet & Greet (whole airport traffic)
+    "Atithya": [
+        "Meet & Greet (Goa)",
+        "Meet & Greet",
+        "M&G Goa",
+        "M&G",
+    ],
+    # Row 2: Porter (Porter Pool traffic)
+    "Porter": [
+        "Porter (Goa)",
+        "Porter",
+    ],
+    # Row 3: Total (Atithya + Porter) — subtotal
+    "Total (Atithya + Porter)": [],
+    # Row 4: Domestic Lounge (Domestic terminal traffic)
+    "Domestic Lounge": [
         "Domestic Lounge (Goa)",
-        "Domestic Lounge",          # short name stored in DB
+        "Domestic Lounge",
         "Goa Lounge Dom",
         "RL Dom Departure",
         "RL Dom Arrival",
     ],
-    "International": [
+    # Row 5: International Lounge (International terminal traffic)
+    "International Lounge": [
         "International Lounge (Goa)",
-        "International Lounge",     # short name stored in DB
+        "International Lounge",
+        "Goa Lounge INTL",
         "Reserved Lounge (Goa)",
         "Reserved Lounge Goa",
-        "Reserved Lounge",          # short name stored in DB
-        "Goa Lounge INTL",
+        "Reserved Lounge",
         "Prive (Goa)",
-        "CIP Lounge",               # stored in DB as short name
+        "CIP Lounge",
         "RL Int Arrival",
     ],
-    "Ancillary": [
+    # Row 6: Baggage Wrapping (whole airport traffic)
+    "Baggage Wrapping": [
         "Baggage Wrapping (Goa)",
-        "Baggage Wrapping",         # short name stored in DB
-        "Meet & Greet (Goa)",
-        "Meet & Greet",             # short name stored in DB
-        "M&G Goa",
-        "M&G",                      # short name stored in DB
-        "Porter (Goa)",
-        "Porter",                   # short name stored in DB
+        "Baggage Wrapping",
+        "Enwrap",
     ],
+    # Row 7: Total — grand total
+    "Total": [],
 }
 
 # ---------------------------------------------------------------------------
@@ -460,10 +481,10 @@ def get_display_name(outlet: str, location: str = "") -> str:
         # GOA overrides — short names actually stored in DB
         ("domestic lounge", "goa"):             "Domestic Lounge",
         ("international lounge", "goa"):        "International Lounge",
-        ("baggage wrapping", "goa"):            "Enwrap",
-        ("enwrap", "goa"):                      "Enwrap",
-        ("meet & greet", "goa"):                "M&G",
-        ("m&g", "goa"):                         "M&G",
+        ("baggage wrapping", "goa"):            "Baggage Wrapping",
+        ("enwrap", "goa"):                      "Baggage Wrapping",
+        ("meet & greet", "goa"):                "Atithya",
+        ("m&g", "goa"):                         "Atithya",
         ("porter", "goa"):                      "Porter",
         ("cip lounge", "goa"):                  "CIP Lounge",
         ("reserved lounge goa", "goa"):         "Reserved Lounge (Goa)",
