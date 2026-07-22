@@ -49,12 +49,11 @@ from .date_utils import safe_month_shift as _safe_month_shift
 _DB_ENV = os.environ.get("REVENUE_DB_PATH", "").strip()
 
 if _DB_ENV:
-    # Explicit env var — honour it but ensure the parent directory exists.
     DB_PATH = _DB_ENV
 else:
-    # On Streamlit Cloud the repo root (/mount/src/mark-9/) is read-only.
-    # Try candidate paths in order; use the first one we can write to.
-    # /tmp is always writable (ephemeral but lets the app boot).
+    # Streamlit Cloud mounts repo at /mount/src/... which is READ-ONLY.
+    # Use a real write test (write a byte) to confirm path is writable.
+    # /tmp is always writable — use it as the guaranteed fallback.
     _repo_root = os.path.dirname(os.path.dirname(__file__))
     _candidates = [
         os.path.join(_repo_root, "data", "revenue_analytics.db"),
@@ -67,14 +66,16 @@ else:
             _dir = os.path.dirname(_candidate)
             if _dir:
                 os.makedirs(_dir, exist_ok=True)
-            with open(_candidate, "ab"):
-                pass
+            # True write test — open(ab) passes even on read-only mounts
+            _test = _dir + "/.write_test"
+            with open(_test, "wb") as _fh:
+                _fh.write(b"x")
+            os.remove(_test)
             DB_PATH = _candidate
             break
         except OSError:
             continue
 
-# Always ensure the parent directory exists regardless of how DB_PATH was set.
 _db_dir = os.path.dirname(os.path.abspath(DB_PATH))
 os.makedirs(_db_dir, exist_ok=True)
 
