@@ -22,7 +22,7 @@ import streamlit as st
 from modules import comparison_widget, database, date_picker, revenue_analysis as ra, table_style
 from modules.formatting import format_money, format_pax, format_pct, format_spp
 from modules.outlet_groups import (
-    DELHI_GROUPS, DELHI_SUBTOTALS, HYD_GROUPS, HYD_SUBTOTALS, GOA_GROUPS,
+    DELHI_GROUPS, DELHI_SUBTOTALS, HYD_GROUPS, HYD_SUBTOTALS, GOA_GROUPS, GOA_SUBTOTALS,
     get_display_name,
 )
 from modules.session import bootstrap_session, default_active_date, set_active_date
@@ -508,7 +508,7 @@ with tab_goa:
         else:
             st.subheader("🏖️ Goa")
             summary = _build_group_summary(
-                df_cur, GOA_GROUPS, [],
+                df_cur, GOA_GROUPS, GOA_SUBTOTALS,
                 aop_df=df_aop, compare_df=df_cmp,
             )
             _render_mis_table(summary, current_label, compare_label, "Goa")
