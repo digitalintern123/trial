@@ -195,16 +195,79 @@ if hist_files:
 
 if st.button("📥 Import Historical Data", disabled=not hist_files) and hist_files:
     from modules import upload_status
+    import io as _io
     pending_hist = []
     _hist_latest_date = None
     for hist_file in hist_files:
-        with st.spinner(f"⏳ Importing '{hist_file.name}'..."):
+        _file_bytes = hist_file.read()
+        _file_name  = hist_file.name
+        _sheet_hint = hist_chosen_sheets.get(_file_name)
+        _mb = len(_file_bytes) / 1024 / 1024
+
+        st.info(f"📂 Parsing **{_file_name}** ({_mb:.1f} MB)…")
+
+        # Step 1: Parse only (fast)
+        with st.spinner("🔍 Detecting layout and parsing rows…"):
             result = data_processor.process_uploaded_file(
-                hist_file,
-                hist_file.name,
-                save_to_db=True,
-                excel_sheet_name=hist_chosen_sheets.get(hist_file.name),
+                _io.BytesIO(_file_bytes),
+                _file_name,
+                save_to_db=False,
+                excel_sheet_name=_sheet_hint,
             )
+
+        if not result.success or result.df is None:
+            st.error(f"❌ Parse failed: {result.message}")
+            pending_hist.append(result)
+            continue
+
+        _total_rows = len(result.df)
+        st.success(f"✅ Parsed **{_total_rows:,} rows** — saving to database…")
+
+        # Step 2: Save in batches with progress bar
+        _progress = st.progress(0.0, text="Saving…")
+        _status   = st.empty()
+
+        def _on_progress(pct: float, msg: str) -> None:
+            _progress.progress(pct, text=f"💾 {msg}")
+            _status.caption(msg)
+
+        try:
+            BATCH = 10000
+            _df   = result.df
+            _inserted = 0
+            _skipped  = 0
+            for _start in range(0, _total_rows, BATCH):
+                _batch = _df.iloc[_start:_start + BATCH].copy()
+                _res   = database.save_dataframe(_batch, source_file=_file_name, record_upload=False)
+                _inserted += _res["inserted"]
+                _skipped  += _res["skipped"]
+                _pct = min((_start + BATCH) / _total_rows, 1.0)
+                _on_progress(_pct, f"{_inserted:,} saved, {_skipped:,} skipped ({min(_start+BATCH,_total_rows):,}/{_total_rows:,})")
+
+            _progress.progress(1.0, text="✅ Done!")
+            _status.empty()
+
+            from modules.data_processor import ProcessResult
+            result = ProcessResult(
+                success=True,
+                file_name=_file_name,
+                stage="saving",
+                message=f"Parsed {_total_rows:,} rows. {_inserted:,} new, {_skipped:,} skipped.",
+                df=result.df,
+                report_date=result.report_date,
+                total_revenue=result.total_revenue,
+                total_pax=result.total_pax,
+                inserted=_inserted,
+                skipped=_skipped,
+            )
+        except Exception as _exc:
+            _progress.empty()
+            from modules.data_processor import ProcessResult
+            result = ProcessResult(
+                success=False, file_name=_file_name, stage="saving",
+                message=f"Parsed OK but save failed: {_exc}",
+            )
+
         pending_hist.append(result)
         if result.success and result.report_date and (
             _hist_latest_date is None or result.report_date > _hist_latest_date
