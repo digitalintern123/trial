@@ -52,8 +52,12 @@ if _DB_ENV:
     DB_PATH = _DB_ENV
 else:
     # Streamlit Cloud mounts repo at /mount/src/... which is READ-ONLY.
-    # Use a real write test (write a byte) to confirm path is writable.
-    # /tmp is always writable — use it as the guaranteed fallback.
+    # Use a SQLite write test (not just a plain byte write) to confirm the
+    # path supports DDL operations. On Streamlit Cloud, /mount/src/... is a
+    # read-only FUSE mount: plain open()/write() succeeds on it (directory
+    # inodes are writable) but SQLite CREATE TABLE raises OperationalError
+    # ("attempt to write a readonly database"). /tmp is always fully writable.
+    import sqlite3 as _sqlite3
     _repo_root = os.path.dirname(os.path.dirname(__file__))
     _candidates = [
         os.path.join(_repo_root, "data", "revenue_analytics.db"),
@@ -66,14 +70,20 @@ else:
             _dir = os.path.dirname(_candidate)
             if _dir:
                 os.makedirs(_dir, exist_ok=True)
-            # True write test — open(ab) passes even on read-only mounts
-            _test = _dir + "/.write_test"
-            with open(_test, "wb") as _fh:
-                _fh.write(b"x")
-            os.remove(_test)
+            # SQLite-level write test: actually create a table and drop it.
+            # This catches read-only FUSE mounts that pass plain file writes.
+            _probe = _candidate + ".probe"
+            _con = _sqlite3.connect(_probe)
+            _con.execute("CREATE TABLE IF NOT EXISTS _probe (x INTEGER)")
+            _con.execute("DROP TABLE IF EXISTS _probe")
+            _con.close()
+            try:
+                os.remove(_probe)
+            except OSError:
+                pass
             DB_PATH = _candidate
             break
-        except OSError:
+        except (OSError, _sqlite3.OperationalError):
             continue
 
 _db_dir = os.path.dirname(os.path.abspath(DB_PATH))
@@ -563,14 +573,36 @@ def _migrate_legacy_segments() -> None:
 
 
 def reset_db() -> None:
-    """Danger zone: drop and recreate all tables, wiping all stored data."""
-    Base.metadata.drop_all(ENGINE)
-    try:
-        Base.metadata.create_all(ENGINE)
-    except OperationalError as exc:
-        if "already exists" in str(exc).lower():
-            return
-        raise
+    """Danger zone: wipe all stored data and reset sequences.
+
+    Uses DELETE FROM instead of DROP TABLE / CREATE TABLE so that this works
+    on Streamlit Cloud, where the SQLite file may live on a FUSE mount that
+    allows row-level writes but raises OperationalError on DDL statements
+    (DROP TABLE, CREATE TABLE). DELETE FROM clears every row without touching
+    the schema, and VACUUM reclaims the freed pages so the file shrinks back.
+    """
+    tables = [
+        "revenue_master",
+        "airport_traffic",
+        "aop_target",
+        "aop_target_daily",
+        "upload_log",
+    ]
+    with ENGINE.begin() as conn:
+        for table in tables:
+            try:
+                conn.execute(text(f"DELETE FROM {table}"))
+            except OperationalError:
+                pass  # table may not exist yet on a fresh DB — safe to skip
+        try:
+            conn.execute(text("DELETE FROM sqlite_sequence"))
+        except OperationalError:
+            pass  # sqlite_sequence only exists if AUTOINCREMENT was ever used
+    # VACUUM must run outside a transaction
+    with ENGINE.connect() as conn:
+        conn.execute(text("VACUUM"))
+    # Ensure schema is up to date (no-op if tables already exist)
+    init_db()
 
 
 # ---------------------------------------------------------------------------
