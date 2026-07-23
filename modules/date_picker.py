@@ -79,6 +79,15 @@ def render_date_dropdown(
             f"{label} — Year", options=years, index=year_index, key=year_key
         )
 
+    # ── Month — filtered to selected_year ─────────────────────────────────
+    # NOTE: months_in_year must be computed BEFORE the year-change block
+    # below, which references it. Previously it was defined after that block,
+    # causing a NameError that silently prevented the month from being clamped
+    # when the user switched years — meaning June (or any month not in the
+    # newly-selected year) would stay stuck as the active month even though it
+    # had no data, so the day list would be empty and no date could be picked.
+    months_in_year = sorted({d.month for d in available_dates if d.year == selected_year})
+
     # Detect year change → clamp month to nearest valid month in new year
     # and clamp day accordingly. Preserves selections as much as possible.
     if st.session_state.get(prev_year_key) != selected_year:
@@ -89,9 +98,6 @@ def render_date_dropdown(
         # day will be clamped in the month-change block below if needed
         st.session_state.pop(f"__dp_{key_prefix}_prev_month", None)  # force month re-check
     st.session_state[prev_year_key] = selected_year
-
-    # ── Month — filtered to selected_year ─────────────────────────────────
-    months_in_year = sorted({d.month for d in available_dates if d.year == selected_year})
     with c2:
         if default_date.year == selected_year and default_date.month in months_in_year:
             default_month = default_date.month
