@@ -173,6 +173,18 @@ def process_uploaded_file(
                     try:
                         if hasattr(file_obj, "seek"):
                             file_obj.seek(0)
+                        stacked_match = excel_parser.detect_stacked_daily_blocks(file_obj)
+                    except excel_parser.ExcelParseError:
+                        stacked_match = None
+                    if stacked_match is not None and stacked_match["sheet_name"] == excel_sheet_name:
+                        if hasattr(file_obj, "seek"):
+                            file_obj.seek(0)
+                        df = excel_parser.parse_stacked_daily_blocks(file_obj, stacked_match)
+
+                if df is None:
+                    try:
+                        if hasattr(file_obj, "seek"):
+                            file_obj.seek(0)
                         pivot_matches = excel_parser.detect_all_wide_pivot_sheets(file_obj)
                     except excel_parser.ExcelParseError:
                         pivot_matches = []
@@ -826,6 +838,19 @@ def _parse_excel_with_detection(file_obj) -> tuple[pd.DataFrame, Optional[str]]:
             file_obj, sheet_name=long_match["sheet_name"], header_row_idx=long_match["header_row_idx"]
         )
         return df, f"long-format sheet '{long_match['sheet_name']}'"
+
+    if hasattr(file_obj, "seek"):
+        file_obj.seek(0)
+    try:
+        stacked_match = excel_parser.detect_stacked_daily_blocks(file_obj)
+    except excel_parser.ExcelParseError:
+        stacked_match = None
+
+    if stacked_match is not None:
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+        df = excel_parser.parse_stacked_daily_blocks(file_obj, stacked_match)
+        return df, f"stacked daily blocks sheet '{stacked_match['sheet_name']}'"
 
     if hasattr(file_obj, "seek"):
         file_obj.seek(0)
