@@ -439,12 +439,12 @@ def _total_ehpl_row(summary_df: pd.DataFrame, cur_label: str, cmp_label: str) ->
     aop_var = ra.pct_change(cur_rev, aop_tot) if aop_tot else None
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("TOTAL EHPL — Rev (Current)",  format_money(cur_rev))
-    c2.metric(f"Rev ({cmp_label})",           format_money(cmp_rev))
-    c3.metric("Rev YOY%",                     format_pct(rev_yoy) if rev_yoy is not None else "—",
+    c1.metric(f"TOTAL EHPL — Rev ({cur_label})",  format_money(cur_rev))
+    c2.metric(f"Rev ({cmp_label})",               format_money(cmp_rev))
+    c3.metric("Rev YOY%",                         format_pct(rev_yoy) if rev_yoy is not None else "—",
               delta=format_pct(rev_yoy) if rev_yoy is not None else None,
               delta_color="normal")
-    c4.metric("PAX (Current)",                format_pax(cur_pax))
+    c4.metric(f"PAX ({cur_label})",               format_pax(cur_pax))
     if aop_var is not None:
         c5.metric("AOP Variance",             format_pct(aop_var),
                   delta=format_pct(aop_var), delta_color="normal")
