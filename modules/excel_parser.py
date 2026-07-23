@@ -30,7 +30,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import Optional
 
-import openpyxl
 import pandas as pd
 
 REQUIRED_OUTPUT_COLS = ["date", "segment", "outlet", "location", "pax", "revenue", "aop"]
@@ -485,134 +484,157 @@ def _score_header_row(row_values: list[str]) -> int:
     return score
 
 
-def _parse_wide_daily_pivot(file_obj) -> pd.DataFrame:
+def detect_stacked_daily_blocks(file_obj) -> Optional[dict]:
     """
-    Parse multi-day wide-pivot revenue files (July 2026+ daily format).
+    Detect the 'stacked daily blocks' layout used by multi-day summary
+    workbooks where each date's data occupies its own block of ~50-60 rows,
+    stacked vertically down the sheet.
 
-    Layout (one sheet, repeating blocks):
-      Row N:   "Revenue of:" | date
-      Row N+1: "Outlet / Business" | DELHI | HYDERABAD | GOA | ...
-      Row N+2: | PAX | Revenue | PAX | Revenue | PAX | Revenue | ...
-      Row N+3..M: outlet | del_pax | del_rev | hyd_pax | hyd_rev | goa_pax | goa_rev
-      ...
+    Each block starts with a row whose first cell is 'Revenue of:' and
+    whose second cell is a date, and contains outlet rows with location
+    columns (DELHI / HYDERABAD / GOA) as PAX+Revenue column-pairs.
 
-    Returns long-format DataFrame with: date, segment, outlet, location, pax, revenue
-    Raises ValueError if "Revenue of:" blocks are not found.
+    Returns {"sheet_name": str} if found, else None.
     """
-    import datetime as _dt
+    try:
+        xl = pd.ExcelFile(file_obj, engine="openpyxl")
+    except Exception as exc:
+        raise ExcelParseError(f"Could not open this Excel file: {exc}") from exc
 
-    wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
-    sheet_name = None
-    for name in wb.sheetnames:
-        if "sheet2" in name.lower() or "data" in name.lower():
-            sheet_name = name
-            break
-    if sheet_name is None:
-        sheet_name = wb.sheetnames[0]
-    ws = wb[sheet_name]
-    all_rows = list(ws.iter_rows(values_only=True))
-    wb.close()
+    for sheet_name in xl.sheet_names:
+        try:
+            preview = pd.read_excel(xl, sheet_name=sheet_name, header=None, nrows=60)
+        except Exception:
+            continue
+        block_starts = 0
+        for _, row in preview.iterrows():
+            c0 = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
+            c1 = row.iloc[1] if len(row) > 1 else None
+            if c0 == "Revenue of:" and hasattr(c1, "year"):
+                block_starts += 1
+        if block_starts >= 1:
+            return {"sheet_name": sheet_name}
+    return None
 
-    # Find day blocks
-    day_blocks = []
-    for i, row in enumerate(all_rows):
-        if row and row[0] == "Revenue of:" and len(row) > 1 and row[1] is not None:
-            date = row[1]
-            if isinstance(date, _dt.datetime):
-                date = date.date()
-            day_blocks.append((i, date))
 
-    if not day_blocks:
-        raise ValueError("No 'Revenue of:' blocks found")
+def parse_stacked_daily_blocks(file_obj, layout: dict) -> pd.DataFrame:
+    """
+    Parse the 'stacked daily blocks' layout (see detect_stacked_daily_blocks).
 
-    # Outlet → (segment, canonical_name)
-    _MAP = {
-        "international lounge (del inl5&6; hyd & goa)": ("EHPL", "INL 5&6"),
-        "domestic lounge (del dlo2/3/4, hyd)":           ("EHPL", "Lounge DL 02,03,04"),
-        "domestic lounge - d49":                         ("EHPL", "T3 D49"),
-        "domestic lounge - t2":                          ("EHPL", "T2 Domestic"),
-        "domestic lounge - t1 l5":                       ("EHPL", "T1D new premium lounge 2 (level 5)"),
-        "domestic lounge - t1 l4":                       ("EHPL", "T1D new Amex Lounge (level 4)"),
-        "domestic lounge - t1 prive":                    ("EHPL", "T1D Prive"),
-        "domestic lounge - rupay":                       ("EHPL", "Lounge Rupay"),
-        "domestic lounge - air india":                   ("EHPL", "Air India"),
-        "domestic lounge - air india ":                  ("EHPL", "Air India"),
-        "international lounge - air india":              ("EHPL", "AI International Lounge"),
-        "international lounge - air india ":             ("EHPL", "AI International Lounge"),
-        "xenia - inl t3":                               ("EHPL", "Xenia"),
-        "xenia - inl t3 ":                              ("EHPL", "Xenia"),
-        "international lounge - premium":               ("EHPL", "Premium Lounge"),
-        "international lounge - premium ":              ("EHPL", "Premium Lounge"),
-        "sleeping pod - premium lounge":                ("EHPL", "Premium Lounge"),
-        "nap - premium lounge":                         ("EHPL", "Nap & Shower LA01"),
-        "spa - premium lounge":                         ("EHPL", "Spa - International"),
-        "domesticlounge- centurion amex t1":            ("EHPL", "T1D new Amex Lounge (level 4)"),
-        "domesticlounge- centurion amex t3":            ("EHPL", "Lounge - Amex Centurion"),
-        "arrival lounge - la22":                        ("EHPL", "Arrival Lounge LA 22"),
-        "transit lounge - la01":                        ("EHPL", "Nap & Shower LA01"),
-        "transit lounge - la12":                        ("EHPL", "Nap & Shower LA12"),
-        "reserve lounges":                              ("EHPL", "Reserved Lounge"),
-        "atithya":                                      ("EHPL", "Meet & Greet"),
-        "welcome & assist":                             ("EHPL", "Meet & Greet"),
-        "porter services- t1":                          ("EHPL", "Porter"),
-        "porter services -t2":                          ("EHPL", "Porter"),
-        "porter services -t3":                          ("EHPL", "Porter"),
-        "buggy services":                               ("EHPL", "Buggy Service"),
-        "enwrap services":                              ("EHPL", "Baggage Wrapping"),
-        "business centre":                              ("EHPL", "Business Center"),
-        "ceremonial(del)  /  ga (hyd)  /  cip(goa)":   ("EHPL", "CIP Lounge"),
-        "airport lodge":                                ("EHPL", "Airport Lodge"),
-        "domestic spa- dpa10 t3":                       ("EHPL", "Dom Spa"),
-        "domestic spa- t1":                             ("EHPL", "T1D SPA"),
-        "international spa- inl07 t3":                  ("EHPL", "Spa - International"),
-        "encalm eats":                                  ("EHPL", "Encalm Eats"),
-        "encalm sky plates":                            ("Sky Plates", "Encalm Sky Plates"),
-        "round d clock (rdc)-restaurant":               ("EHPL", "Round D Clock (RDC)"),
-        "round d clock -motel":                         ("EHPL", "Round D Clock (RDC)"),
-        "domestic bar - d49":                           ("EHPL", "Domestic Bar D49"),
-        "domestic bar - dlo2/3/4, hyd & goa":           ("EHPL", "Domestic Bar DLO"),
-        "domestic bar - rupay":                         ("EHPL", "Domestic Bar Rupay"),
-        "domestic bar - t1 l5":                         ("EHPL", "Domestic Bar T1"),
-        "domestic bar - t2":                            ("EHPL", "Domestic Bar T2"),
-        "international bar -  premium lounge":          ("EHPL", "International Bar Premium"),
-        "international bar - inl5&6, hyd & goa":        ("EHPL", "International Bar INL"),
+    Each block covers one date. Within a block:
+    - Column 0: outlet name (or category header / subtotal)
+    - Columns 1-2: DELHI PAX / Revenue
+    - Columns 3-4: HYDERABAD PAX / Revenue
+    - Columns 5-6: GOA PAX / Revenue
+    - Columns 7+: MTD totals — ignored (we only want the daily figure)
+
+    Category headers (e.g. 'Lounges & Spa', 'Atithya', 'Others',
+    'Subsidiary') mark segment groups; rows with a NaN col-0 are subtotals
+    and are skipped. 'Encalm Eats' and 'Encalm Sky Plates' are treated as
+    their own segments (matching the rest of the app's canonicalization).
+    """
+    sheet_name = layout["sheet_name"]
+    raw = pd.read_excel(file_obj, sheet_name=sheet_name, engine="openpyxl", header=None)
+
+    # Labels that start a new segment/category group (not an outlet row)
+    _CATEGORY_TO_BU: dict[str, str] = {
+        "lounges & spa": "Lounges & Spa",
+        "atithya": "Atithya",
+        "others": "Others",
+        "subsidiary": "Others",
+        "subsidiary ": "Others",
     }
-
-    _SKIP = {
-        "revenue of:", "outlet / business ", "outlet / business",
-        "pax", "revenue", "lounges & spa", "total", "subsidiary ",
-        "subsidiary", "others", "", "nan",
+    # Outlets that belong to their own top-level segment
+    _SUBSIDIARY_MAP: dict[str, tuple[str, str]] = {
+        "encalm eats": ("Encalm Eats", "Encalm Eats"),
+        "encalm sky plates": ("Sky Plates", "Sky Plates"),
     }
-
-    _LOC_COLS = [("Delhi", 1, 2), ("Hyderabad", 3, 4), ("Goa", 5, 6)]
+    _SKIP: set[str] = {
+        "outlet / business", "outlet / business ", "total",
+        "revenue of:", "* pax in numbers;  revenue in inr excluding taxes.",
+        "* pax in numbers;  revenue in inr excluding taxes",
+    }
+    # Daily column layout: location -> (pax_col_idx, revenue_col_idx)
+    _LOC_COLS: dict[str, tuple[int, int]] = {
+        "DELHI":     (1, 2),
+        "HYDERABAD": (3, 4),
+        "GOA":       (5, 6),
+    }
 
     records = []
-    for blk_i, (start, date) in enumerate(day_blocks):
-        end = day_blocks[blk_i + 1][0] if blk_i + 1 < len(day_blocks) else len(all_rows)
-        for row in all_rows[start + 3:end]:
-            if not row or row[0] is None:
-                continue
-            raw = str(row[0]).strip()
-            key = raw.lower()
-            if key in _SKIP or raw.startswith("*") or raw.lower().startswith("total"):
-                continue
-            seg, outlet = _MAP.get(key, ("EHPL", raw))
-            for loc, pc, rc in _LOC_COLS:
-                try:
-                    pax = float(row[pc]) if pc < len(row) and row[pc] is not None else None
-                    rev = float(row[rc]) if rc < len(row) and row[rc] is not None else None
-                except (TypeError, ValueError):
-                    pax = rev = None
-                if (rev is None or rev == 0) and (pax is None or pax == 0):
+    n = len(raw)
+    i = 0
+    while i < n:
+        row = raw.iloc[i]
+        c0 = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
+        c1 = row.iloc[1] if len(row) > 1 else None
+
+        if c0 == "Revenue of:" and hasattr(c1, "year"):
+            # Start of a new daily block
+            date_val = c1.date() if hasattr(c1, "date") else c1
+            current_bu = "Lounges & Spa"
+            i += 1
+            while i < n:
+                r = raw.iloc[i]
+                label = str(r.iloc[0]).strip() if pd.notna(r.iloc[0]) else ""
+                label_lower = label.lower().rstrip()
+
+                # Next block boundary
+                if label == "Revenue of:":
+                    break
+
+                # Blank / subtotal / skip rows
+                if not label or label.startswith("*") or label_lower in _SKIP:
+                    i += 1
                     continue
-                records.append({"date": date, "segment": seg, "outlet": outlet,
-                                 "location": loc, "pax": pax, "revenue": rev})
+
+                # Category header → update business unit
+                if label_lower in _CATEGORY_TO_BU:
+                    current_bu = _CATEGORY_TO_BU[label_lower]
+                    i += 1
+                    continue
+
+                # Subsidiary outlets (own segment)
+                if label_lower in _SUBSIDIARY_MAP:
+                    seg, bu = _SUBSIDIARY_MAP[label_lower]
+                    for loc, (pc, rc) in _LOC_COLS.items():
+                        pax = r.iloc[pc] if pc < len(r) and pd.notna(r.iloc[pc]) else None
+                        rev = r.iloc[rc] if rc < len(r) and pd.notna(r.iloc[rc]) else None
+                        if pax is not None or rev is not None:
+                            records.append({
+                                "date": date_val, "outlet": label, "location": loc,
+                                "segment": seg, "business_unit": bu,
+                                "pax": pax, "revenue": rev,
+                            })
+                    i += 1
+                    continue
+
+                # Regular outlet row
+                for loc, (pc, rc) in _LOC_COLS.items():
+                    pax = r.iloc[pc] if pc < len(r) and pd.notna(r.iloc[pc]) else None
+                    rev = r.iloc[rc] if rc < len(r) and pd.notna(r.iloc[rc]) else None
+                    if pax is not None or rev is not None:
+                        records.append({
+                            "date": date_val, "outlet": label, "location": loc,
+                            "segment": "EHPL", "business_unit": current_bu,
+                            "pax": pax, "revenue": rev,
+                        })
+                i += 1
+            continue
+        i += 1
 
     if not records:
-        raise ValueError("No revenue data extracted")
+        raise ExcelParseError(
+            f"Sheet '{sheet_name}' looks like stacked daily blocks but no "
+            "outlet rows could be extracted. Check that the file contains "
+            "'Revenue of:' rows followed by outlet data."
+        )
 
-    df = pd.DataFrame(records)
-    df["date"] = pd.to_datetime(df["date"]).dt.date
+    df = pd.DataFrame.from_records(records)
+    df["aop"] = pd.NA
+    df["traffic"] = pd.NA
+    df = df.drop_duplicates(subset=["date", "segment", "outlet", "location"], keep="last")
+    df = df.reset_index(drop=True)
     return df
 
 
@@ -625,30 +647,18 @@ def parse_excel_auto(file_obj, source_file: str = "uploaded.xlsx") -> pd.DataFra
     or layout.
 
     Tries, in order:
-      0. A multi-day wide-daily-pivot sheet (Revenue of: date blocks,
-         outlets as rows, Delhi/HYD/Goa as columns) — July 2026+ format.
       1. A long-format sheet anywhere in the workbook (one row per
          date+location+segment+outlet) — any sheet name.
-      2. A wide pivot/cross-tab sheet anywhere in the workbook (one row per
+      2. A stacked daily blocks layout (multiple date blocks stacked
+         vertically, each starting with 'Revenue of:' + date, outlet rows
+         with DELHI/HYDERABAD/GOA column-pairs) — any sheet name.
+      3. A wide pivot/cross-tab sheet anywhere in the workbook (one row per
          date, PAX./Revenue. column-pairs repeated per outlet under merged
          Location/Segment/Outlet header rows) — any sheet name.
 
-    Raises ExcelParseError with a clear, specific message only if neither
-    layout is found in any sheet, rather than silently guessing and
-    returning garbage.
+    Raises ExcelParseError with a clear, specific message only if no layout
+    is found in any sheet, rather than silently guessing and returning garbage.
     """
-    # ── 0. Multi-day wide-daily-pivot (July 2026+ daily format) ─────────────
-    if hasattr(file_obj, "seek"):
-        file_obj.seek(0)
-    try:
-        df = _parse_wide_daily_pivot(file_obj)
-        if not df.empty:
-            return df
-    except Exception:
-        pass
-
-    if hasattr(file_obj, "seek"):
-        file_obj.seek(0)
     long_match = detect_long_format_sheet(file_obj)
     if long_match is not None:
         return parse_revenue_dashboard(
@@ -656,6 +666,14 @@ def parse_excel_auto(file_obj, source_file: str = "uploaded.xlsx") -> pd.DataFra
             sheet_name=long_match["sheet_name"],
             header_row_idx=long_match["header_row_idx"],
         )
+
+    if hasattr(file_obj, "seek"):
+        file_obj.seek(0)
+    stacked_match = detect_stacked_daily_blocks(file_obj)
+    if stacked_match is not None:
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+        return parse_stacked_daily_blocks(file_obj, stacked_match)
 
     if hasattr(file_obj, "seek"):
         file_obj.seek(0)
@@ -672,7 +690,8 @@ def parse_excel_auto(file_obj, source_file: str = "uploaded.xlsx") -> pd.DataFra
     raise ExcelParseError(
         "Could not find a usable revenue layout in any sheet of this "
         "workbook — neither a long-format table (a row with 'Date' plus "
-        "'Location'/'Business'/'Outlet' headers) nor a wide pivot table "
+        "'Location'/'Business'/'Outlet' headers), a stacked daily blocks "
+        "layout ('Revenue of:' + date blocks), nor a wide pivot table "
         "(one row per date with repeated PAX./Revenue. column-pairs per "
         f"outlet). Sheets found: {sheet_names}."
     )
