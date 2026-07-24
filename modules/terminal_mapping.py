@@ -180,6 +180,63 @@ _DELHI_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
 
     # CIP Lounge — not currently operational; excluded from traffic metrics
     "CIP Lounge":                           None,
+
+    # ── New outlet name variants from July 2026 stacked-daily revenue file ──
+    # These use long descriptive names instead of the short canonical names
+    # that previous report formats used.
+
+    # International lounges (T3 Int Dep)
+    "International Lounge (DEL INL5&6; HYD & GOA)": TERMINAL_3_INT_DEP,
+    "International Lounge - Premium":               TERMINAL_3_INT_DEP,
+    "International Lounge - Air India":             TERMINAL_3_INT_DEP,
+    "International Bar - INL5&6, Hyd & Goa":        TERMINAL_3_INT_DEP,
+    "International Bar -  Premium Lounge":           TERMINAL_3_INT_DEP,
+    "Xenia - INL T3":                               TERMINAL_3_INT_DEP,
+    "International Spa- INL07 T3":                  TERMINAL_3_INT_DEP,
+    "SPA - Premium Lounge":                         TERMINAL_3_INT_DEP,
+    "NAP - Premium Lounge":                         TERMINAL_3_INT_DEP,
+    "Sleeping Pod - Premium Lounge":                TERMINAL_3_INT_DEP,
+
+    # Domestic lounges — T3 Domestic Dep
+    "Domestic Lounge - D49":                        TERMINAL_3_DOM_DEP,
+    "Domestic Lounge - Rupay":                      TERMINAL_3_DOM_DEP,
+    "Domestic Lounge - Air India":                  TERMINAL_3_DOM_DEP,
+    "DomesticLounge- Centurion Amex T3":            TERMINAL_3_DOM_DEP,
+    "Domestic Bar - D49":                           TERMINAL_3_DOM_DEP,
+    "Domestic Bar - Rupay":                         TERMINAL_3_DOM_DEP,
+    "Domestic Lounge (DEL DLO2/3/4, HYD)":         TERMINAL_3_DOM_DEP,
+    "Domestic Bar - DLO2/3/4, Hyd & Goa":          TERMINAL_3_DOM_DEP,
+    "Domestic Spa- DPA10 T3":                       TERMINAL_3_INT_DEP,  # transitioning to INL per master sheet
+
+    # Domestic lounges — T1 Dep
+    "Domestic Lounge - T1 L4":                     TERMINAL_1,
+    "Domestic Lounge - T1 L5":                     TERMINAL_1,
+    "Domestic Lounge - T1 Prive":                   TERMINAL_1,
+    "DomesticLounge- Centurion Amex T1":            TERMINAL_1,
+    "Domestic Bar - T1 L5":                         TERMINAL_1,
+    "Domestic Spa- T1":                             TERMINAL_1,
+
+    # Domestic lounges — T2 Dep
+    "Domestic Lounge - T2":                         TERMINAL_2,
+    "Domestic Bar - T2":                            TERMINAL_2,
+
+    # Arrivals / LA outlets (T3 Arr sentinel)
+    "Arrival Lounge - LA22":                        "T3 Arr",
+    "Transit Lounge - LA01":                        "T3 Arr",
+    "Transit Lounge - LA12":                        "T3 Arr",
+    "Reserve Lounges":                              "T3 Arr",
+
+    # Ancillary — whole airport or no specific pool
+    "Enwrap Services":                              _SENTINEL_ALL_DEP,
+    "Buggy Services":                               "T3 Total",
+    "Porter Services- T1":                          "Porter Pool",
+    "Porter Services -T2":                          "Porter Pool",
+    "Porter Services -T3":                          "Porter Pool",
+    "Welcome & Assist":                             _SENTINEL_ALL,
+    "Ceremonial(Del)  /  GA (Hyd)  /  CIP(Goa)":  None,
+    "Business Centre":                              None,
+    "Round D Clock (RDC)-Restaurant":               None,
+    "Round D Clock -Motel":                         None,
     # ── Ancillary services — confirmed traffic pools ──────────────────────
     # Baggage Wrapping (Enwrap) → All Dept = T1+T2+T3Dom+T3Int ALL departures
     # M&G / Atithya             → Total airport = all 6 pools (Dep+Arr all terminals)
@@ -258,6 +315,19 @@ _HYDERABAD_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
     "Porter (Hyderabad)":                "All",
     "Buggy Service":                     "All",
     "Buggy":                             "All",
+
+    # ── New outlet name variants from July 2026 stacked-daily revenue file ──
+    "Domestic Lounge (DEL DLO2/3/4, HYD)":          "Domestic",
+    "Domestic Bar - DLO2/3/4, Hyd & Goa":           "Domestic",
+    "International Lounge (DEL INL5&6; HYD & GOA)": "International",
+    "International Lounge - Premium":                "International",
+    "International Bar - INL5&6, Hyd & Goa":        "International",
+    "International Bar -  Premium Lounge":           "International",
+    "SPA - Premium Lounge":                          "International",
+    "Reserve Lounges":                               "International",
+    "Enwrap Services":                               "All",
+    "Welcome & Assist":                              "All",
+    "Ceremonial(Del)  /  GA (Hyd)  /  CIP(Goa)":   None,
 }
 
 # ---------------------------------------------------------------------------
@@ -294,6 +364,17 @@ _GOA_OUTLET_TO_TERMINAL: dict[str, Optional[str]] = {
     # ── Porter — whole airport for Goa (no Delhi-style Porter Pool) ──────
     "Porter":                            "All",
     "Porter (Goa)":                      "All",
+
+    # ── New outlet name variants from July 2026 stacked-daily revenue file ──
+    "Domestic Lounge (DEL DLO2/3/4, HYD)":          "Domestic",
+    "Domestic Bar - DLO2/3/4, Hyd & Goa":           "Domestic",
+    "International Lounge (DEL INL5&6; HYD & GOA)": "International",
+    "International Bar - INL5&6, Hyd & Goa":        "International",
+    "Reserve Lounges":                               "International",
+    "Enwrap Services":                               "All",
+    "Welcome & Assist":                              "All",
+    "Ceremonial(Del)  /  GA (Hyd)  /  CIP(Goa)":   None,
+    "Porter Services- T1":                           "All",
 }
 
 
@@ -308,7 +389,7 @@ def get_terminal_for_outlet(outlet: str, location: str) -> Optional[str]:
     - Outlet not yet in the mapping           → "Unmapped" (visible in the
       Terminal Analysis page so new outlets can be spotted and added)
     """
-    location_key = location.strip()
+    location_key = location.strip().title()  # normalise DELHI→Delhi, HYDERABAD→Hyderabad etc.
     outlet_key = outlet.strip()
 
     if location_key == "Delhi":
@@ -349,7 +430,7 @@ def add_terminal_column(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_known_terminals_for_location(location: str) -> list[str]:
     """Distinct physical terminal labels stored in airport_traffic for a location."""
-    location_key = location.strip()
+    location_key = location.strip().title()
     if location_key == "Delhi":
         # Return all actual stored terminal labels (not sentinels)
         return sorted([
