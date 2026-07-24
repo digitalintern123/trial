@@ -46,14 +46,11 @@ from .date_utils import safe_month_shift as _safe_month_shift
 # on every restart/deploy. To persist data across restarts, set the env var
 # REVENUE_DB_PATH to a path outside the container (e.g. a mounted volume).
 # Locally it defaults to the repo root.
-# DB_PATH resolution — always /tmp unless overridden by env var.
-#
-# Streamlit Cloud mounts the repo at /mount/src/... which is READ-ONLY for
-# SQLite writes (OperationalError: attempt to write a readonly database).
-# /tmp is always writable on every platform (Streamlit Cloud, local, Docker).
-# If you need persistence across restarts set REVENUE_DB_PATH to a mounted
-# volume path (e.g. a Supabase-backed file or a Docker bind-mount).
 _DB_ENV = os.environ.get("REVENUE_DB_PATH", "").strip()
+
+# Always use /tmp on Streamlit Cloud — the repo mount at /mount/src/... is
+# read-only for SQLite DDL (CREATE TABLE, CREATE INDEX etc.) even though plain
+# file writes may appear to succeed. /tmp is writable on every platform.
 DB_PATH = _DB_ENV if _DB_ENV else "/tmp/revenue_analytics.db"
 
 _db_dir = os.path.dirname(os.path.abspath(DB_PATH))
@@ -543,36 +540,14 @@ def _migrate_legacy_segments() -> None:
 
 
 def reset_db() -> None:
-    """Danger zone: wipe all stored data and reset sequences.
-
-    Uses DELETE FROM instead of DROP TABLE / CREATE TABLE so that this works
-    on Streamlit Cloud, where the SQLite file may live on a FUSE mount that
-    allows row-level writes but raises OperationalError on DDL statements
-    (DROP TABLE, CREATE TABLE). DELETE FROM clears every row without touching
-    the schema, and VACUUM reclaims the freed pages so the file shrinks back.
-    """
-    tables = [
-        "revenue_master",
-        "airport_traffic",
-        "aop_target",
-        "aop_target_daily",
-        "upload_log",
-    ]
-    with ENGINE.begin() as conn:
-        for table in tables:
-            try:
-                conn.execute(text(f"DELETE FROM {table}"))
-            except OperationalError:
-                pass  # table may not exist yet on a fresh DB — safe to skip
-        try:
-            conn.execute(text("DELETE FROM sqlite_sequence"))
-        except OperationalError:
-            pass  # sqlite_sequence only exists if AUTOINCREMENT was ever used
-    # VACUUM must run outside a transaction
-    with ENGINE.connect() as conn:
-        conn.execute(text("VACUUM"))
-    # Ensure schema is up to date (no-op if tables already exist)
-    init_db()
+    """Danger zone: drop and recreate all tables, wiping all stored data."""
+    Base.metadata.drop_all(ENGINE)
+    try:
+        Base.metadata.create_all(ENGINE)
+    except OperationalError as exc:
+        if "already exists" in str(exc).lower():
+            return
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -1139,10 +1114,6 @@ def join_revenue_with_traffic(revenue_df: pd.DataFrame, traffic_df: Optional[pd.
     dates = pd.to_datetime(work["date"]).dt.date
     start_date, end_date = dates.min(), dates.max()
 
-    # Normalise location to title-case so "GOA"/"DELHI" (revenue) matches
-    # "Goa"/"Delhi" (traffic) in the merge.
-    work["location"] = work["location"].str.strip().str.title()
-
     location_totals = work.groupby("location", as_index=False).agg(
         revenue=("revenue", "sum"), pax=("pax", "sum")
     )
@@ -1155,7 +1126,6 @@ def join_revenue_with_traffic(revenue_df: pd.DataFrame, traffic_df: Optional[pd.
             location_totals["traffic_is_estimated"] = False
             location_totals["traffic_missing_days"] = 0
             return location_totals
-        traffic_totals["location"] = traffic_totals["location"].str.strip().str.title()
         traffic_by_location = traffic_totals.groupby("location", as_index=False).agg(
             traffic=("traffic", "sum"),
             traffic_is_estimated=("is_estimated", "any"),
@@ -1167,8 +1137,6 @@ def join_revenue_with_traffic(revenue_df: pd.DataFrame, traffic_df: Optional[pd.
             location_totals["traffic_is_estimated"] = False
             location_totals["traffic_missing_days"] = 0
             return location_totals
-        traffic_df = traffic_df.copy()
-        traffic_df["location"] = traffic_df["location"].str.strip().str.title()
         traffic_by_location = traffic_df.groupby("location", as_index=False)["traffic"].sum()
         traffic_by_location["traffic_is_estimated"] = False
         traffic_by_location["traffic_missing_days"] = 0
@@ -1212,11 +1180,9 @@ def join_revenue_with_traffic_by_outlet(
     # Get all terminal-level traffic for this date range
     traffic_totals = get_traffic_total_for_range(start_date, end_date)
     # Build lookup: (location, terminal) → traffic info
-    # Normalise location to title-case so "GOA"/"DELHI"/"HYDERABAD" (from
-    # revenue uploads) match "Goa"/"Delhi"/"Hyderabad" (from traffic uploads).
     traffic_lookup: dict[tuple, dict] = {}
     for _, row in traffic_totals.iterrows():
-        key = (str(row["location"]).strip().title(), str(row.get("terminal", "")))
+        key = (row["location"], str(row.get("terminal", "")))
         traffic_lookup[key] = {
             "traffic": row["traffic"],
             "is_estimated": row.get("is_estimated", False),
@@ -1230,7 +1196,6 @@ def join_revenue_with_traffic_by_outlet(
 
     def _get_traffic(outlet: str, location: str) -> tuple:
         """Return (traffic, is_estimated, missing_days) for this outlet."""
-        location = str(location).strip().title()  # normalise case before lookup
         terminal = tm.get_terminal_for_outlet(outlet, location)
         if not terminal or terminal in ("", "Unmapped"):
             return (float("nan"), False, 0)
